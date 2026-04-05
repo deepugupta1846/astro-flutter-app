@@ -43,3 +43,22 @@ android {
 flutter {
     source = "../.."
 }
+
+// Flutter CLI expects APKs under `<project>/build/app/outputs/flutter-apk/`, but the Gradle
+// plugin writes to `android/app/build/outputs/flutter-apk/`. Copy after assemble so
+// `flutter run` / `flutter build apk` can find the artifact.
+afterEvaluate {
+    fun copyFlutterApkForTool() {
+        val src = layout.buildDirectory.dir("outputs/flutter-apk").get().asFile
+        if (!src.exists()) return
+        val dest = rootProject.rootDir.resolve("../build/app/outputs/flutter-apk")
+        dest.mkdirs()
+        copy { 
+            from(src)
+            into(dest)
+        }
+    }
+    listOf("assembleDebug", "assembleProfile", "assembleRelease").forEach { name ->
+        tasks.findByName(name)?.doLast { copyFlutterApkForTool() }
+    }
+}

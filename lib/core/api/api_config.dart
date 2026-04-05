@@ -3,14 +3,23 @@ import 'dart:io' show Platform;
 import 'package:device_info_plus/device_info_plus.dart';
 import 'package:flutter/foundation.dart';
 
-const String kBaseUrlProduction =
-    'https://magadhsoftservice.com/astro-pulse/api';
+/// Production REST base **must** end with `/api` when backend mounts routes at `/api/v1/...`.
+/// (Otherwise requests go to `https://host/v1/...` and fail; browser tests often use `/api/v1/...`.)
+const String kBaseUrlProduction = 'https://api.astropulse.live/api';
 
-/// Use production API in release builds, or when PRODUCTION_API=true.
-bool get kUseProductionApi => bool.fromEnvironment(
-      'PRODUCTION_API',
-      defaultValue: kReleaseMode,
-    );
+/// Use production when:
+/// - **Release** builds (always), or
+/// - **Debug/profile** by default.
+///
+/// Local dev: `flutter run --dart-define=USE_LOCAL_API=true`
+/// (then [initDevApiBaseUrl] picks emulator / LAN / `API_BASE_URL` as before).
+bool get kUseProductionApi {
+  if (kReleaseMode) return true;
+  return !bool.fromEnvironment(
+    'USE_LOCAL_API',
+    defaultValue: false,
+  );
+}
 
 /// Full override at compile time, e.g.
 /// `--dart-define=API_BASE_URL=http://192.168.1.10:5000`
@@ -37,7 +46,14 @@ String _devBaseUrl = 'http://10.0.2.2:$kDevApiPortFromEnvironment';
 /// Device lookups are time-bounded so a stuck plugin never blocks [runApp] (white /
 /// native splash forever).
 Future<void> initDevApiBaseUrl() async {
-  if (kUseProductionApi) return;
+  if (kUseProductionApi) {
+    if (kDebugMode) {
+      debugPrint(
+        'ApiConfig: production REST → $apiBaseUrl$apiUserPath (send-otp: $apiBaseUrl$apiUserPath/send-otp)',
+      );
+    }
+    return;
+  }
 
   if (kApiBaseUrlFromEnvironment.isNotEmpty) {
     _devBaseUrl = kApiBaseUrlFromEnvironment;

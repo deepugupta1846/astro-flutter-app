@@ -1,11 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 
 import 'api_config.dart';
+import 'api_log.dart';
 
 /// Result of uploading an image (or using an existing URL).
 class ImageUploadResult {
@@ -83,7 +83,14 @@ class UploadApi {
         final raw =
             res.body.isEmpty ? <String, dynamic>{} : jsonDecode(res.body);
         body = Map<String, dynamic>.from(raw is Map ? raw : {});
-      } catch (_) {
+      } catch (e, st) {
+        logAstroApiError(
+          label: 'upload_json_parse',
+          response: res,
+          message: '$e',
+          error: e,
+          stackTrace: st,
+        );
         return ImageUploadResult.fail(
           'Invalid server response (${res.statusCode}). Check API URL and server.',
         );
@@ -94,6 +101,11 @@ class UploadApi {
       if (!success || !okStatus) {
         final msg = body['message']?.toString() ??
             'Upload failed (${res.statusCode})';
+        logAstroApiError(
+          label: 'upload_failed',
+          response: res,
+          message: msg,
+        );
         return ImageUploadResult.fail(msg);
       }
 
@@ -101,9 +113,20 @@ class UploadApi {
       if (data is Map && data['url'] != null) {
         return ImageUploadResult.ok(data['url'].toString());
       }
+      logAstroApiError(
+        label: 'upload_no_url',
+        response: res,
+        message: 'Server did not return image URL in data',
+      );
       return ImageUploadResult.fail('Server did not return image URL');
     } catch (e, st) {
-      debugPrint('UploadApi.uploadImage: $e\n$st');
+      logAstroApiError(
+        label: 'upload_exception',
+        response: null,
+        message: 'Network error: $e',
+        error: e,
+        stackTrace: st,
+      );
       return ImageUploadResult.fail('Network error: $e');
     }
   }

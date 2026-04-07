@@ -23,10 +23,20 @@ class ConsultationRoomScreen extends StatefulWidget {
     required this.peerDisplayName,
     this.initialCallMode = ConsultationCallMode.none,
     this.existingSessionId,
+    this.autoAnswerCallLogId,
+    this.autoAnswerCallMode,
   }) : assert(
           existingSessionId != null || astrologerId != null,
           'astrologerId is required when not opening an existing session',
         );
+
+  /// When non-null with [autoAnswerCallMode], joins the Agora channel as callee after load
+  /// (used when opening the room from an [incoming_call] socket event).
+  final int? autoAnswerCallLogId;
+  final ConsultationCallMode? autoAnswerCallMode;
+
+  /// Active consultation room session id (this device). Used to avoid duplicate incoming-call UX.
+  static int? activeOpenSessionId;
 
   /// Astrologer profile id (customers start chat via [createOrGetSession]).
   final int? astrologerId;
@@ -103,6 +113,10 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
   void initState() {
     super.initState();
     _msgFocus.addListener(_onMessageFocusChanged);
+    final ex = widget.existingSessionId;
+    if (ex != null) {
+      ConsultationRoomScreen.activeOpenSessionId = ex;
+    }
     _bootstrap();
   }
 
@@ -209,6 +223,23 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
       _attachRealtime(uid, _sessionId!);
 
       setState(() => _loading = false);
+
+      ConsultationRoomScreen.activeOpenSessionId = _sessionId;
+
+      final autoLog = widget.autoAnswerCallLogId;
+      final autoMode = widget.autoAnswerCallMode;
+      if (autoLog != null &&
+          autoMode != null &&
+          widget.initialCallMode == ConsultationCallMode.none) {
+        WidgetsBinding.instance.addPostFrameCallback((_) async {
+          if (!mounted) return;
+          await _joinRtc(
+            autoMode,
+            outgoing: false,
+            existingCallLogId: autoLog,
+          );
+        });
+      }
 
       if (widget.initialCallMode != ConsultationCallMode.none) {
         await _joinRtc(widget.initialCallMode);
@@ -326,6 +357,12 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
       if (!mounted || data is! Map) return;
       _onConversationRead(Map<String, dynamic>.from(data));
     });
+    if (widget.autoAnswerCallLogId == null) {
+      s.on('incoming_call', (data) {
+        if (!mounted || data is! Map) return;
+        _handleIncomingCallSocket(Map<String, dynamic>.from(data));
+      });
+    }
     void join() {
       s.emit('join_consultation', {'sessionId': sessionId});
       _ackUndeliveredIncoming();
@@ -333,6 +370,53 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
 
     s.onConnect((_) => join());
     s.connect();
+  }
+
+  void _handleIncomingCallSocket(Map<String, dynamic> m) {
+    final sid = _asInt(m['sessionId']);
+    if (sid == null || sid != _sessionId) return;
+    final starter = _asInt(m['startedByUserId']);
+    final my = _myUid;
+    if (my == null || starter == my) return;
+    final callLogId = _asInt(m['callLogId']);
+    final ct = m['callType']?.toString() ?? 'voice';
+    if (callLogId == null) return;
+    if (_activeCallMode != ConsultationCallMode.none || _rtcBusy) return;
+    final mode =
+        ct == 'video' ? ConsultationCallMode.video : ConsultationCallMode.voice;
+    if (!mounted) return;
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(
+          ct == 'video' ? 'Incoming video call' : 'Incoming voice call',
+        ),
+        content: Text('${widget.peerDisplayName} is calling…'),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              try {
+                await ConsultationApi.endCall(callLogId: callLogId);
+              } catch (_) {}
+            },
+            child: const Text('Decline'),
+          ),
+          FilledButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              unawaited(_joinRtc(
+                mode,
+                outgoing: false,
+                existingCallLogId: callLogId,
+              ));
+            },
+            child: const Text('Accept'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _onMessageStatus(Map<String, dynamic> m) {
@@ -761,7 +845,11 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
     return '$h:$m';
   }
 
-  Future<void> _joinRtc(ConsultationCallMode mode) async {
+  Future<void> _joinRtc(
+    ConsultationCallMode mode, {
+    bool outgoing = true,
+    int? existingCallLogId,
+  }) async {
     final sid = _sessionId;
     final channel = _channelName;
     final appId = _agoraAppId;
@@ -811,22 +899,39 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
 
     try {
       final callType = mode == ConsultationCallMode.video ? 'video' : 'voice';
-      final startRes = await ConsultationApi.startCall(
-        sessionId: sid,
-        callType: callType,
-        startedByUserId: uid,
-      );
-      if (!mounted) return;
-      if (startRes['success'] != true) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(startRes['message']?.toString() ?? 'Could not start call')),
+      if (outgoing) {
+        final startRes = await ConsultationApi.startCall(
+          sessionId: sid,
+          callType: callType,
+          startedByUserId: uid,
         );
-        setState(() => _rtcBusy = false);
-        return;
-      }
-      final d = startRes['data'];
-      if (d is Map) {
-        _callLogId = _asInt(Map<String, dynamic>.from(d)['callLogId']);
+        if (!mounted) return;
+        if (startRes['success'] != true) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                startRes['message']?.toString() ?? 'Could not start call',
+              ),
+            ),
+          );
+          setState(() => _rtcBusy = false);
+          return;
+        }
+        final d = startRes['data'];
+        if (d is Map) {
+          _callLogId = _asInt(Map<String, dynamic>.from(d)['callLogId']);
+        }
+      } else {
+        if (existingCallLogId == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Invalid incoming call')),
+            );
+            setState(() => _rtcBusy = false);
+          }
+          return;
+        }
+        _callLogId = existingCallLogId;
       }
 
       final tokRes = await ConsultationApi.issueRtcToken(
@@ -1051,6 +1156,11 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
 
   @override
   void dispose() {
+    final activeSid = _sessionId ?? widget.existingSessionId;
+    if (activeSid != null &&
+        ConsultationRoomScreen.activeOpenSessionId == activeSid) {
+      ConsultationRoomScreen.activeOpenSessionId = null;
+    }
     _stopCallUiTimer();
     final sid = _sessionId;
     if (_socket != null && sid != null) {

@@ -44,6 +44,7 @@ class _ConsultationSessionsListScreenState
       _socket!.on('inbox_updated', (_) {
         if (mounted) _load(silent: true);
       });
+      _socket!.on('incoming_call', _onIncomingCall);
       _socket!.on('presence_snapshot', _onPresenceSnapshot);
       _socket!.on('user_presence', _onUserPresence);
       _socket!.connect();
@@ -60,6 +61,29 @@ class _ConsultationSessionsListScreenState
       if (n != null && n > 0) next.add(n);
     }
     if (mounted) setState(() => _onlineUserIds = next);
+  }
+
+  void _onIncomingCall(dynamic raw) {
+    if (!mounted || raw is! Map) return;
+    final m = Map<String, dynamic>.from(raw);
+    final sessionId = _intFrom(m, 'sessionId');
+    final callLogId = _intFrom(m, 'callLogId');
+    if (sessionId == null || callLogId == null) return;
+    if (ConsultationRoomScreen.activeOpenSessionId == sessionId) return;
+    final ct = m['callType']?.toString() ?? 'voice';
+    final mode = ct == 'video'
+        ? ConsultationCallMode.video
+        : ConsultationCallMode.voice;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (ctx) => ConsultationRoomScreen(
+          existingSessionId: sessionId,
+          peerDisplayName: 'Incoming call',
+          autoAnswerCallLogId: callLogId,
+          autoAnswerCallMode: mode,
+        ),
+      ),
+    );
   }
 
   void _onUserPresence(dynamic raw) {

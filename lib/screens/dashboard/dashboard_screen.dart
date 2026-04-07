@@ -181,153 +181,332 @@ class _DashboardScreenState extends State<DashboardScreen>
           color: AppTheme.primaryColor,
           onRefresh: _loadAstrologers,
           child: CustomScrollView(
-          physics: const AlwaysScrollableScrollPhysics(
-            parent: BouncingScrollPhysics(),
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 0,
+                  total: 12,
+                  child: _buildHeaderContent(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 1,
+                  total: 12,
+                  child: _buildSearchBar(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 2,
+                  total: 12,
+                  child: _buildCashbackBanner(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 3,
+                  total: 12,
+                  child: _buildServiceIcons(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 4,
+                  total: 12,
+                  child: _buildPromoBanner1(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 5,
+                  total: 12,
+                  child: _buildSectionHeaderContent(
+                    context,
+                    'Live Astrologers',
+                    'View All',
+                  ),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 6,
+                  total: 12,
+                  child: _buildLiveAstrologers(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 7,
+                  total: 12,
+                  child: _buildGotQuestionsBanner(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 8,
+                  total: 12,
+                  child: _buildChatCallButtons(context),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: _animatedSection(
+                  index: 9,
+                  total: 12,
+                  child: _buildSectionHeaderContent(
+                    context,
+                    'Astrologers',
+                    'View All',
+                  ),
+                ),
+              ),
+              _buildAstrologerList(context),
+              const SliverToBoxAdapter(child: SizedBox(height: 32)),
+            ],
           ),
-          slivers: [
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 0, total: 12, child: _buildHeaderContent(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 1, total: 12, child: _buildSearchBar(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 2, total: 12, child: _buildCashbackBanner(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 3, total: 12, child: _buildServiceIcons(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 4, total: 12, child: _buildPromoBanner1(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 5, total: 12, child: _buildSectionHeaderContent(context, 'Live Astrologers', 'View All')),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 6, total: 12, child: _buildLiveAstrologers(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 7, total: 12, child: _buildGotQuestionsBanner(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 8, total: 12, child: _buildChatCallButtons(context)),
-            ),
-            SliverToBoxAdapter(
-              child: _animatedSection(index: 9, total: 12, child: _buildSectionHeaderContent(context, 'Astrologers', 'View All')),
-            ),
-            _buildAstrologerList(context),
-            const SliverToBoxAdapter(child: SizedBox(height: 32)),
-          ],
         ),
-        ),
+      ),
+    );
+  }
+
+  Widget _notificationIconButton(BuildContext context, {bool compact = false}) {
+    final sz = compact ? 22.0 : 24.0;
+    final min = compact ? 40.0 : 44.0;
+    return IconButton(
+      visualDensity: VisualDensity.compact,
+      constraints: BoxConstraints(minWidth: min, minHeight: min),
+      padding: EdgeInsets.zero,
+      tooltip: 'Notifications',
+      icon: Icon(Icons.notifications_outlined, size: sz),
+      onPressed: () {},
+      color: AppTheme.primaryTextColor,
+      style: IconButton.styleFrom(
+        backgroundColor: AppTheme.backgroundColor,
       ),
     );
   }
 
   Widget _buildHeaderContent(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 16, 12, 16),
-      child: Row(
-        children: [
-          _ScaleTap(
-            onTap: () => Scaffold.of(context).openDrawer(),
-            child: CircleAvatar(
-              radius: 24,
-              backgroundColor: AppTheme.primaryColor,
-              child: const Icon(Icons.person_rounded, color: AppTheme.onPrimaryColor, size: 28),
+    final theme = Theme.of(context);
+    final greeting = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Hi ${AppSession.firstName}',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          'Welcome back',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: theme.textTheme.bodySmall,
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final maxW = constraints.maxWidth;
+        final padH = maxW >= 600 ? 24.0 : 20.0;
+        final padR = 12.0;
+        /// Compact wallet on typical phones so one row fits; full chip on tablets.
+        final denseWallet = maxW < 560;
+        final compactNotif = maxW < 360;
+        final avatarGap = maxW < 340 ? 10.0 : 14.0;
+
+        final avatar = _ScaleTap(
+          onTap: () => Scaffold.of(context).openDrawer(),
+          child: CircleAvatar(
+            radius: maxW < 340 ? 22 : 24,
+            backgroundColor: AppTheme.primaryColor,
+            child: Icon(
+              Icons.person_rounded,
+              color: AppTheme.onPrimaryColor,
+              size: maxW < 340 ? 26 : 28,
             ),
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Hi ${AppSession.firstName}',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  'Welcome back',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
+        );
+
+        final walletAndNotif = Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _walletChip(context, dense: denseWallet),
+            SizedBox(width: maxW < 340 ? 4 : 8),
+            _notificationIconButton(context, compact: compactNotif),
+          ],
+        );
+
+        /// Single row: greeting expands, trailing cluster scales down if needed.
+        return Padding(
+          padding: EdgeInsets.fromLTRB(padH, 16, padR, 16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              avatar,
+              SizedBox(width: avatarGap),
+              Expanded(child: greeting),
+              SizedBox(width: maxW < 340 ? 4 : 8),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerRight,
+                child: walletAndNotif,
+              ),
+            ],
           ),
-          _walletChip(context),
-          const SizedBox(width: 4),
-          IconButton(
-            icon: const Icon(Icons.translate_rounded),
-            onPressed: () {},
-            color: AppTheme.primaryTextColor,
-            style: IconButton.styleFrom(backgroundColor: AppTheme.backgroundColor),
-          ),
-          IconButton(
-            icon: const Icon(Icons.support_agent_rounded),
-            onPressed: () {},
-            color: AppTheme.primaryTextColor,
-            style: IconButton.styleFrom(backgroundColor: AppTheme.backgroundColor),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
-  Widget _walletChip(BuildContext context) {
+  String _formatWalletBalance(double rupees) {
+    final whole = rupees == rupees.truncateToDouble();
+    final amount = whole
+        ? rupees.truncate().toString()
+        : rupees.toStringAsFixed(2);
+    return '₹ $amount';
+  }
+
+  BoxDecoration _walletChipDecoration({required double radius}) {
+    return BoxDecoration(
+      gradient: LinearGradient(
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+        colors: [
+          AppTheme.primaryContainer.withValues(alpha: 0.65),
+          AppTheme.surfaceColor,
+        ],
+      ),
+      borderRadius: BorderRadius.circular(radius),
+      border: Border.all(
+        color: AppTheme.primaryColor.withValues(alpha: 0.14),
+      ),
+      boxShadow: [
+        BoxShadow(
+          color: AppTheme.primaryColor.withValues(alpha: 0.08),
+          blurRadius: 14,
+          offset: const Offset(0, 4),
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.04),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    );
+  }
+
+  Widget _walletChip(BuildContext context, {bool dense = false}) {
+    final theme = Theme.of(context);
+    final balance = AppSession.walletBalance;
+    final balanceText = _formatWalletBalance(balance);
+
+    final iconBox = dense ? 34.0 : 40.0;
+    final iconGlyph = dense ? 20.0 : 22.0;
+    final radius = dense ? 16.0 : 18.0;
+    final innerRadius = dense ? 12.0 : 14.0;
+    final addPadding = dense ? 6.0 : 8.0;
+    final addIcon = dense ? 18.0 : 20.0;
+
+    Widget addCircle() {
+      return Container(
+        decoration: BoxDecoration(
+          color: AppTheme.primaryColor.withValues(alpha: 0.12),
+          shape: BoxShape.circle,
+        ),
+        padding: EdgeInsets.all(addPadding),
+        child: Icon(
+          Icons.add_rounded,
+          size: addIcon,
+          color: AppTheme.primaryColor,
+        ),
+      );
+    }
+
     return _ScaleTap(
       onTap: () {},
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: AppTheme.surfaceColor,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: AppTheme.inputBorderColor),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 12,
-              offset: const Offset(0, 3),
-            ),
-          ],
+        constraints: BoxConstraints(minHeight: dense ? 44 : 48),
+        padding: EdgeInsets.only(
+          left: dense ? 5 : 6,
+          right: dense ? 8 : 10,
+          top: dense ? 5 : 6,
+          bottom: dense ? 5 : 6,
         ),
-        child: Column(
+        decoration: _walletChipDecoration(radius: radius),
+        child: Row(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.account_balance_wallet_rounded,
-                    size: 18, color: AppTheme.primaryTextColor),
-                const SizedBox(width: 6),
-                const Text('₹ 30', style: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 15,
-                  color: AppTheme.primaryTextColor,
-                )),
-                const SizedBox(width: 4),
-                Icon(Icons.add_circle_rounded, size: 20, color: AppTheme.successColor),
-              ],
-            ),
-            const SizedBox(height: 4),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              width: iconBox,
+              height: iconBox,
               decoration: BoxDecoration(
-                color: AppTheme.successColor.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(8),
+                color: AppTheme.primaryColor.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(innerRadius),
               ),
-              child: Text(
-                '50% Cashback',
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w700,
-                  color: AppTheme.successColor,
+              child: Icon(
+                Icons.account_balance_wallet_rounded,
+                size: iconGlyph,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            SizedBox(width: dense ? 10 : 12),
+            if (dense)
+              Text(
+                balanceText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  color: AppTheme.primaryTextColor,
+                  letterSpacing: -0.2,
+                ),
+              )
+            else
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Wallet',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.labelSmall?.copyWith(
+                        color: AppTheme.secondaryTextColor,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        balanceText,
+                        maxLines: 1,
+                        style: theme.textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primaryTextColor,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-            ),
+            SizedBox(width: dense ? 6 : 8),
+            addCircle(),
           ],
         ),
       ),
@@ -406,33 +585,15 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                 ],
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '50% Cashback!',
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                                fontWeight: FontWeight.w800,
-                                letterSpacing: -0.3,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'ON NEXT RECHARGE',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  _ScaleTap(
+              child: LayoutBuilder(
+                builder: (context, bc) {
+                  final cta = _ScaleTap(
                     onTap: () {},
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 20,
+                        vertical: 12,
+                      ),
                       decoration: BoxDecoration(
                         color: AppTheme.primaryColor,
                         borderRadius: BorderRadius.circular(999),
@@ -448,13 +609,50 @@ class _DashboardScreenState extends State<DashboardScreen>
                         'RECHARGE NOW',
                         style: TextStyle(
                           fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: AppTheme.primaryTextColor,
+                          fontSize: 12,
+                          letterSpacing: 0.2,
+                          color: AppTheme.onPrimaryColor,
                         ),
                       ),
                     ),
-                  ),
-                ],
+                  );
+                  final copy = Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '50% Cashback!',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.3,
+                            ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'ON NEXT RECHARGE',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ],
+                  );
+                  if (bc.maxWidth < 300) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        copy,
+                        const SizedBox(height: 14),
+                        cta,
+                      ],
+                    );
+                  }
+                  return Row(
+                    children: [
+                      Expanded(child: copy),
+                      const SizedBox(width: 12),
+                      cta,
+                    ],
+                  );
+                },
               ),
             ),
           );
@@ -471,19 +669,26 @@ class _DashboardScreenState extends State<DashboardScreen>
       _ServiceItem('Astrology Blog', Icons.menu_book_rounded),
     ];
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: List.generate(services.length, (i) {
-          final e = services[i];
-          return _AnimatedServiceIcon(
-            label: e.label,
-            icon: e.icon,
-            delay: 0.1 + (i * 0.05),
-            loadController: _loadController,
-            onTap: () {},
-          );
-        }),
+      padding: const EdgeInsets.fromLTRB(0, 24, 0, 24),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const BouncingScrollPhysics(),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: List.generate(services.length, (i) {
+            final e = services[i];
+            return Padding(
+              padding: EdgeInsets.only(right: i < services.length - 1 ? 20 : 0),
+              child: _AnimatedServiceIcon(
+                label: e.label,
+                icon: e.icon,
+                delay: 0.1 + (i * 0.05),
+                loadController: _loadController,
+                onTap: () {},
+              ),
+            );
+          }),
+        ),
       ),
     );
   }
@@ -515,6 +720,7 @@ class _DashboardScreenState extends State<DashboardScreen>
             ],
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
                 child: Column(
@@ -522,6 +728,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                   children: [
                     Text(
                       'What will my future be in the next 5 years?',
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                             height: 1.3,
                             fontWeight: FontWeight.w700,
@@ -539,7 +747,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                     _ScaleTap(
                       onTap: () {},
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 22,
+                          vertical: 12,
+                        ),
                         decoration: BoxDecoration(
                           color: AppTheme.primaryColor,
                           borderRadius: BorderRadius.circular(999),
@@ -551,11 +762,14 @@ class _DashboardScreenState extends State<DashboardScreen>
                             ),
                           ],
                         ),
-                        child: const Text('Chat Now', style: TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 14,
-                          color: AppTheme.onPrimaryColor,
-                        )),
+                        child: const Text(
+                          'Chat Now',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: AppTheme.onPrimaryColor,
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -576,7 +790,11 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ),
                   borderRadius: BorderRadius.circular(44),
                 ),
-                child: const Icon(Icons.person_rounded, size: 48, color: AppTheme.primaryTextColor),
+                child: const Icon(
+                  Icons.person_rounded,
+                  size: 48,
+                  color: AppTheme.primaryTextColor,
+                ),
               ),
             ],
           ),
@@ -791,76 +1009,84 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildChatCallButtons(BuildContext context) {
+    Widget pillButton({
+      required IconData icon,
+      required String label,
+      required VoidCallback onTap,
+    }) {
+      return _ScaleTap(
+        onTap: onTap,
+        child: Container(
+          height: 52,
+          padding: const EdgeInsets.symmetric(horizontal: 12),
+          decoration: BoxDecoration(
+            color: AppTheme.primaryColor,
+            borderRadius: BorderRadius.circular(999),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.primaryColor.withValues(alpha: 0.35),
+                blurRadius: 12,
+                offset: const Offset(0, 4),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 22, color: AppTheme.onPrimaryColor),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                    color: AppTheme.onPrimaryColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: _ScaleTap(
-              onTap: () {},
-              child: Container(
-                height: 52,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.chat_bubble_rounded, size: 22, color: AppTheme.onPrimaryColor),
-                    SizedBox(width: 10),
-                    Text('Chat with Astrologer', style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppTheme.onPrimaryColor,
-                    )),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: _ScaleTap(
-              onTap: () {},
-              child: Container(
-                height: 52,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryColor,
-                  borderRadius: BorderRadius.circular(999),
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppTheme.primaryColor.withValues(alpha: 0.35),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: const Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.call_rounded, size: 22, color: AppTheme.onPrimaryColor),
-                    SizedBox(width: 10),
-                    Text('Call with Astrologer', style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      fontSize: 14,
-                      color: AppTheme.onPrimaryColor,
-                    )),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
+      child: LayoutBuilder(
+        builder: (context, c) {
+          final stack = c.maxWidth < 340;
+          final chat = pillButton(
+            icon: Icons.chat_bubble_rounded,
+            label: 'Chat with Astrologer',
+            onTap: () {},
+          );
+          final call = pillButton(
+            icon: Icons.call_rounded,
+            label: 'Call with Astrologer',
+            onTap: () {},
+          );
+          if (stack) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                chat,
+                const SizedBox(height: 12),
+                call,
+              ],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: chat),
+              const SizedBox(width: 12),
+              Expanded(child: call),
+            ],
+          );
+        },
       ),
     );
   }

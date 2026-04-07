@@ -75,6 +75,26 @@ class AppSession {
 
   static bool get isLoggedIn => userId != null;
 
+  /// Wallet balance in rupees from persisted [user] (e.g. login/profile API).
+  /// Tries `walletBalance`, `wallet_balance`, `balance`, `wallet`.
+  static double get walletBalance {
+    final u = _user;
+    if (u == null) return 0;
+    for (final key in [
+      'walletBalance',
+      'wallet_balance',
+      'balance',
+      'wallet',
+    ]) {
+      final v = u[key];
+      if (v == null) continue;
+      if (v is num) return v.toDouble();
+      final p = double.tryParse(v.toString().trim());
+      if (p != null) return p;
+    }
+    return 0;
+  }
+
   /// Backend [User.role] — `'astrologer'` for registered astrologers.
   static bool get isAstrologer {
     final r = _user?['role']?.toString().toLowerCase().trim();

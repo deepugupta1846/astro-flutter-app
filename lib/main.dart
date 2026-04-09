@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'core/api/api_config.dart';
 import 'core/navigation/app_navigator.dart';
+import 'core/notifications/push_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/session/app_session.dart';
 import 'screens/splash/splash_screen.dart';
@@ -15,6 +16,8 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   // Session is local + fast; needed before splash decides login vs dashboard.
   await AppSession.init();
+  await PushNotificationService.init();
+  unawaited(PushNotificationService.syncTokenWithBackend());
   // Never block first frame on device_info / network; splash can show immediately.
   unawaited(initDevApiBaseUrl());
   runApp(const AstroLogerApp());

@@ -1,4 +1,4 @@
-package com.example.astrologer_pulse_app
+package com.astro.pulse
 
 import io.flutter.embedding.android.FlutterActivity
 

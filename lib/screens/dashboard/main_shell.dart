@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../core/session/app_session.dart';
 import '../../core/session/dashboard_mode_store.dart';
 import 'astrologer_main_shell.dart';
@@ -24,6 +25,7 @@ class _MainShellState extends State<MainShell> {
   void initState() {
     super.initState();
     _restoreSurface();
+    PushNotificationService.syncTokenWithBackend();
   }
 
   Future<void> _restoreSurface() async {

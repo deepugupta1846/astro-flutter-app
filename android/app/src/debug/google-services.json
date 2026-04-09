@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "153791120226",
+    "project_id": "astro-pulse-2ac11",
+    "storage_bucket": "astro-pulse-2ac11.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:153791120226:android:0c13f15910b0f2e845623b",
+        "android_client_info": {
+          "package_name": "com.astro.pulse"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBT6kOk7eWtnJoT5rqizcXR2CSGgcFKs3g"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

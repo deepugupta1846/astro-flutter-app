@@ -95,4 +95,20 @@ class UserApi {
 
   static Map<String, dynamic> _parse(http.Response res) =>
       parseHttpJsonResponse(res);
+
+  static Future<Map<String, dynamic>> updatePushToken({
+    required int userId,
+    required String token,
+    String platform = 'android',
+  }) async {
+    final res = await http.put(
+      Uri.parse('$_base/$userId/push-token'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'token': token,
+        'platform': platform,
+      }),
+    );
+    return _parse(res);
+  }
 }

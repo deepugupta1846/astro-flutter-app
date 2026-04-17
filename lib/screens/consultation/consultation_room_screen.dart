@@ -9,6 +9,10 @@ import 'package:socket_io_client/socket_io_client.dart' as sio;
 
 import '../../core/api/consultation_api.dart';
 import '../../core/api/upload_api.dart';
+import '../../core/call/consultation_incoming_call.dart';
+import '../../core/call/consultation_room_accept_bridge.dart';
+import '../../core/call/incoming_call_coordinator.dart';
+import '../../core/notifications/push_notification_service.dart';
 import '../../core/realtime/consultation_socket.dart';
 import '../../core/session/app_session.dart';
 import '../../core/theme/app_theme.dart';
@@ -221,10 +225,15 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
       await _loadMessages();
       await _markConversationOpened();
       _attachRealtime(uid, _sessionId!);
+      _registerIncomingAcceptBridge();
 
       setState(() => _loading = false);
 
       ConsultationRoomScreen.activeOpenSessionId = _sessionId;
+
+      // Receiver gets push from the server on POST /messages; ensure this device’s
+      // FCM token is registered so the other party gets notifications too.
+      unawaited(PushNotificationService.syncTokenWithBackend());
 
       final autoLog = widget.autoAnswerCallLogId;
       final autoMode = widget.autoAnswerCallMode;
@@ -335,6 +344,22 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
     });
   }
 
+  void _registerIncomingAcceptBridge() {
+    final sid = _sessionId;
+    if (sid == null) return;
+    ConsultationRoomAcceptBridge.registerOpenSession(sid, (invite) async {
+      final mode = invite.isVideo
+          ? ConsultationCallMode.video
+          : ConsultationCallMode.voice;
+      if (!mounted) return;
+      await _joinRtc(
+        mode,
+        outgoing: false,
+        existingCallLogId: invite.callLogId,
+      );
+    });
+  }
+
   void _attachRealtime(int userId, int sessionId) {
     _socket?.dispose();
     final s = createConsultationSocket(userId);
@@ -357,6 +382,10 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
       if (!mounted || data is! Map) return;
       _onConversationRead(Map<String, dynamic>.from(data));
     });
+    s.on('call_ended', (data) {
+      if (!mounted || data is! Map) return;
+      _onRemoteCallEndedSocket(Map<String, dynamic>.from(data));
+    });
     if (widget.autoAnswerCallLogId == null) {
       s.on('incoming_call', (data) {
         if (!mounted || data is! Map) return;
@@ -372,6 +401,29 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
     s.connect();
   }
 
+  void _onRemoteCallEndedSocket(Map<String, dynamic> m) {
+    final sid = _asInt(m['sessionId']);
+    final cid = _asInt(m['callLogId']);
+    if (sid == null || sid != _sessionId) return;
+    if (cid != null &&
+        _callLogId != null &&
+        cid != _callLogId) {
+      return;
+    }
+    if (_activeCallMode == ConsultationCallMode.none &&
+        !_rtcBusy &&
+        _engine == null) {
+      return;
+    }
+    unawaited(_tearDownAfterRemoteCallEnded());
+  }
+
+  Future<void> _tearDownAfterRemoteCallEnded() async {
+    _callLogId = null;
+    await _tearDownRtc();
+    if (mounted) setState(() {});
+  }
+
   void _handleIncomingCallSocket(Map<String, dynamic> m) {
     final sid = _asInt(m['sessionId']);
     if (sid == null || sid != _sessionId) return;
@@ -379,44 +431,15 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
     final my = _myUid;
     if (my == null || starter == my) return;
     final callLogId = _asInt(m['callLogId']);
-    final ct = m['callType']?.toString() ?? 'voice';
     if (callLogId == null) return;
     if (_activeCallMode != ConsultationCallMode.none || _rtcBusy) return;
-    final mode =
-        ct == 'video' ? ConsultationCallMode.video : ConsultationCallMode.voice;
     if (!mounted) return;
-    showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => AlertDialog(
-        title: Text(
-          ct == 'video' ? 'Incoming video call' : 'Incoming voice call',
-        ),
-        content: Text('${widget.peerDisplayName} is calling…'),
-        actions: [
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              try {
-                await ConsultationApi.endCall(callLogId: callLogId);
-              } catch (_) {}
-            },
-            child: const Text('Decline'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              unawaited(_joinRtc(
-                mode,
-                outgoing: false,
-                existingCallLogId: callLogId,
-              ));
-            },
-            child: const Text('Accept'),
-          ),
-        ],
-      ),
-    );
+    final inv = IncomingCallInvite.tryParse({
+      ...m,
+      'peerDisplayName': widget.peerDisplayName,
+    });
+    if (inv == null) return;
+    unawaited(IncomingCallCoordinator.instance.present(inv));
   }
 
   void _onMessageStatus(Map<String, dynamic> m) {
@@ -573,6 +596,7 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
             my,
           );
         }
+        unawaited(PushNotificationService.syncTokenWithBackend());
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res['message']?.toString() ?? 'Send failed')),
@@ -618,6 +642,7 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
         if (d is Map) {
           _appendMessageFromPayload(Map<String, dynamic>.from(d), my);
         }
+        unawaited(PushNotificationService.syncTokenWithBackend());
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(res['message']?.toString() ?? 'Send failed')),
@@ -1157,6 +1182,9 @@ class _ConsultationRoomScreenState extends State<ConsultationRoomScreen> {
   @override
   void dispose() {
     final activeSid = _sessionId ?? widget.existingSessionId;
+    if (activeSid != null) {
+      ConsultationRoomAcceptBridge.unregister(activeSid);
+    }
     if (activeSid != null &&
         ConsultationRoomScreen.activeOpenSessionId == activeSid) {
       ConsultationRoomScreen.activeOpenSessionId = null;

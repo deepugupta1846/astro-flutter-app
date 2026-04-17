@@ -157,6 +157,23 @@ class ConsultationApi {
     return _parse(res);
   }
 
+  /// Completed voice/video calls for [userId] (newest first). Requires DB column `duration_seconds`.
+  static Future<Map<String, dynamic>> listCallHistory({
+    required int userId,
+    int limit = 50,
+  }) async {
+    final uri = Uri.parse('$_base/calls/history/$userId').replace(
+      queryParameters: <String, String>{
+        'limit': '${limit.clamp(1, 100)}',
+      },
+    );
+    final res = await http.get(
+      uri,
+      headers: {'Content-Type': 'application/json'},
+    );
+    return _parse(res);
+  }
+
   static Map<String, dynamic> _parse(http.Response res) =>
       parseHttpJsonResponse(res);
 }

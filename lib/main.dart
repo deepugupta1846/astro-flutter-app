@@ -6,6 +6,7 @@ import 'core/navigation/app_navigator.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'core/theme/app_theme.dart';
 import 'core/session/app_session.dart';
+import 'core/call/incoming_call_overlay_host.dart';
 import 'screens/splash/splash_screen.dart';
 import 'screens/login/login_screen.dart';
 import 'screens/details/details_flow_screen.dart';
@@ -33,6 +34,15 @@ class AstroLogerApp extends StatelessWidget {
       title: 'AstroLoger',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
+      builder: (context, child) {
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            child ?? const SizedBox.shrink(),
+            const IncomingCallOverlayHost(),
+          ],
+        );
+      },
       initialRoute: '/',
       routes: {
         '/': (context) => const SplashScreen(),

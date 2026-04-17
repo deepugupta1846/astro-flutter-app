@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/api/astrologer_api.dart';
+import '../../core/api/consultation_api.dart';
 import '../../core/session/app_session.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/widgets/app_primary_button.dart';
@@ -20,6 +21,10 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
   List<Map<String, dynamic>> _astrologers = [];
   bool _astroLoading = true;
   String? _astroError;
+
+  List<Map<String, dynamic>> _recentCalls = [];
+  bool _callsLoading = true;
+  String? _callsError;
 
   List<Map<String, dynamic>> get _filteredAstrologers {
     final q = _searchCtrl.text.trim().toLowerCase();
@@ -83,6 +88,113 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
     _openConsultation(item, initialCallMode: choice);
   }
 
+  Future<void> _loadRecentCalls() async {
+    final uid = AppSession.userId;
+    if (uid == null) {
+      if (mounted) {
+        setState(() {
+          _callsLoading = false;
+          _recentCalls = [];
+        });
+      }
+      return;
+    }
+    if (mounted) {
+      setState(() {
+        _callsLoading = true;
+        _callsError = null;
+      });
+    }
+    try {
+      final res = await ConsultationApi.listCallHistory(userId: uid, limit: 40);
+      if (!mounted) return;
+      if (res['success'] == true && res['data'] is List) {
+        setState(() {
+          _recentCalls = List<Map<String, dynamic>>.from(
+            (res['data'] as List).map(
+              (e) => Map<String, dynamic>.from(e as Map),
+            ),
+          );
+          _callsLoading = false;
+          _callsError = null;
+        });
+      } else {
+        setState(() {
+          _callsLoading = false;
+          _callsError = res['message']?.toString();
+          _recentCalls = [];
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _callsLoading = false;
+          _callsError = e.toString();
+          _recentCalls = [];
+        });
+      }
+    }
+  }
+
+  Future<void> _refreshAll() async {
+    await Future.wait<void>([
+      _loadAstrologers(),
+      _loadRecentCalls(),
+    ]);
+  }
+
+  void _openCallHistoryRow(Map<String, dynamic> row) {
+    final sid = row['sessionId'];
+    final sessionId = sid is int ? sid : int.tryParse(sid?.toString() ?? '');
+    if (sessionId == null || sessionId <= 0) return;
+    final name = row['peerName']?.toString() ?? 'Chat';
+    final aid = row['astrologerId'];
+    final astroId = aid is int ? aid : int.tryParse(aid?.toString() ?? '');
+    Navigator.of(context).push<void>(
+      MaterialPageRoute<void>(
+        builder: (context) => ConsultationRoomScreen(
+          existingSessionId: sessionId,
+          astrologerId: astroId,
+          peerDisplayName: name,
+        ),
+      ),
+    );
+  }
+
+  String _peerInitial(String? name) {
+    final t = name?.trim();
+    if (t == null || t.isEmpty) return '?';
+    return t.substring(0, 1).toUpperCase();
+  }
+
+  String _formatDurationSeconds(dynamic raw) {
+    final s = raw is int ? raw : int.tryParse(raw?.toString() ?? '');
+    if (s == null || s < 0) return '—';
+    if (s < 60) return '${s}s';
+    final m = s ~/ 60;
+    final r = s % 60;
+    if (m < 60) return '${m}m ${r.toString().padLeft(2, '0')}s';
+    final h = m ~/ 60;
+    final rm = m % 60;
+    return '${h}h ${rm}m';
+  }
+
+  String _formatEndedLabel(dynamic v) {
+    if (v == null) return '';
+    final dt = v is String ? DateTime.tryParse(v) : null;
+    if (dt == null) return '';
+    final local = dt.toLocal();
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final d = DateTime(local.year, local.month, local.day);
+    if (d == today) {
+      final h = local.hour.toString().padLeft(2, '0');
+      final min = local.minute.toString().padLeft(2, '0');
+      return 'Today $h:$min';
+    }
+    return '${local.day}/${local.month}/${local.year}';
+  }
+
   Future<void> _loadAstrologers() async {
     setState(() {
       _astroLoading = true;
@@ -120,7 +232,7 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
   void initState() {
     super.initState();
     _searchCtrl.addListener(() => setState(() {}));
-    _loadAstrologers();
+    _refreshAll();
   }
 
   @override
@@ -194,6 +306,73 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
           ),
           onChanged: (_) => setState(() {}),
         ),
+      ),
+    );
+  }
+
+  Widget _buildRecentCallsSlivers(BuildContext context) {
+    if (_callsLoading && _recentCalls.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 28),
+          child: Center(
+            child: SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2.5,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+    if (_recentCalls.isEmpty) {
+      return SliverToBoxAdapter(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 4, 24, 8),
+          child: Text(
+            _callsError ??
+                'No recent calls yet. Start a voice or video call from an astrologer card.',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ),
+      );
+    }
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, i) {
+          final row = _recentCalls[i];
+          final isVideo = (row['callType']?.toString() ?? '') == 'video';
+          final outgoing = row['direction']?.toString() == 'outgoing';
+          return ListTile(
+            contentPadding:
+                const EdgeInsets.symmetric(horizontal: 20, vertical: 2),
+            leading: CircleAvatar(
+              backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.12),
+              child: Text(
+                _peerInitial(row['peerName']?.toString()),
+                style: const TextStyle(
+                  color: AppTheme.primaryColor,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+            title: Text(
+              row['peerName']?.toString() ?? 'Unknown',
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+            subtitle: Text(
+              '${isVideo ? 'Video' : 'Voice'} · ${_formatDurationSeconds(row['durationSeconds'])} · '
+              '${outgoing ? 'Outgoing' : 'Incoming'} · ${_formatEndedLabel(row['endedAt'])}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            onTap: () => _openCallHistoryRow(row),
+          );
+        },
+        childCount: _recentCalls.length,
       ),
     );
   }
@@ -357,7 +536,7 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
       child: SafeArea(
         child: RefreshIndicator(
           color: AppTheme.primaryColor,
-          onRefresh: _loadAstrologers,
+          onRefresh: _refreshAll,
           child: CustomScrollView(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
@@ -365,6 +544,8 @@ class _AstrologersCallTabScreenState extends State<AstrologersCallTabScreen> {
             slivers: [
               SliverToBoxAdapter(child: _buildTopBar(context)),
               SliverToBoxAdapter(child: _buildSearchBar(context)),
+              SliverToBoxAdapter(child: _buildSectionHeader('Recent calls')),
+              _buildRecentCallsSlivers(context),
               SliverToBoxAdapter(child: _buildSectionHeader('Live Astrologers')),
               SliverToBoxAdapter(child: _buildLiveAstrologers(context)),
               SliverToBoxAdapter(child: _buildSectionHeader('Astrologers')),

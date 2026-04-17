@@ -5,6 +5,7 @@ import '../../core/api/consultation_api.dart';
 import '../../core/realtime/consultation_socket.dart';
 import '../../core/session/app_session.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/call/incoming_call_coordinator.dart';
 import 'consultation_room_screen.dart';
 
 /// Consultation threads for the logged-in user (bottom-nav Chat tab).
@@ -45,6 +46,7 @@ class _ConsultationSessionsListScreenState
         if (mounted) _load(silent: true);
       });
       _socket!.on('incoming_call', _onIncomingCall);
+      _socket!.on('call_ended', _onCallEnded);
       _socket!.on('presence_snapshot', _onPresenceSnapshot);
       _socket!.on('user_presence', _onUserPresence);
       _socket!.connect();
@@ -65,24 +67,20 @@ class _ConsultationSessionsListScreenState
 
   void _onIncomingCall(dynamic raw) {
     if (!mounted || raw is! Map) return;
+    IncomingCallCoordinator.instance.handleRawPayload(
+      Map<String, dynamic>.from(raw),
+    );
+  }
+
+  void _onCallEnded(dynamic raw) {
+    if (raw is! Map) return;
     final m = Map<String, dynamic>.from(raw);
-    final sessionId = _intFrom(m, 'sessionId');
-    final callLogId = _intFrom(m, 'callLogId');
-    if (sessionId == null || callLogId == null) return;
-    if (ConsultationRoomScreen.activeOpenSessionId == sessionId) return;
-    final ct = m['callType']?.toString() ?? 'voice';
-    final mode = ct == 'video'
-        ? ConsultationCallMode.video
-        : ConsultationCallMode.voice;
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (ctx) => ConsultationRoomScreen(
-          existingSessionId: sessionId,
-          peerDisplayName: 'Incoming call',
-          autoAnswerCallLogId: callLogId,
-          autoAnswerCallMode: mode,
-        ),
-      ),
+    final sid = _intFrom(m, 'sessionId');
+    final cid = _intFrom(m, 'callLogId');
+    if (sid == null || cid == null) return;
+    IncomingCallCoordinator.instance.onRemoteCallEnded(
+      sessionId: sid,
+      callLogId: cid,
     );
   }
 
